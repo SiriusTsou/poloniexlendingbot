@@ -3,8 +3,10 @@ import urllib
 import urllib2
 import json
 import smtplib
-import socket
-import string
+from irc import client
+
+IRC_CLIENT = None
+IRC_SERVER = None
 
 
 # Slack post data needs to be encoded in UTF-8
@@ -92,31 +94,19 @@ def post_to_pushbullet(msg, token, deviceid):
         raise NotificationException(e)
 
 
-def send_to_irc(msg, host, port, nick, ident, realname, channel):
+def post_to_irc(msg, host, port, nick, ident, realname, target):
     """
     Log into an IRC server and send a message to a channel.
-
-    This isn't particularly effecient as it logs in every time you want to send a message. Hence why it's wrapped in a
-    thread. It would be much better if the thread kept the connection open and it would be much faster. I'll maybe fix
-    that in a future PR.
     """
-    readbuffer = ""
-    s = socket.socket()
-    s.connect((host, port))
-    s.send("NICK %s\r\n" % nick)
-    s.send("USER %s %s bla :%s\r\n" % (ident, host, realname))
-    message = "test"
-    s.send("JOIN {0}\r\n".format(channel))
-    s.send("PRIVMSG {0} :{1}\r\n".format(channel, message))
-    line = ""
+    global IRC_CLIENT, IRC_SERVER
+    if IRC_CLIENT is None:
+        IRC_CLIENT = client.Reactor()
+        IRC_SERVER = IRC_CLIENT.server()
 
-    while "JOIN {0}".format(channel) not in line:
-        readbuffer = readbuffer + s.recv(1024)
-        temp = string.split(readbuffer, "\n")
-        readbuffer = temp.pop()
-
-        for line in temp:
-            line = string.rstrip(line)
+    IRC_SERVER.connect(host, port, nick)
+    if client.is_channel(target):
+        IRC_SERVER.join(target)
+    IRC_SERVER.privmsg(target, msg)
 
 
 def send_notification(msg, notify_conf):
@@ -130,3 +120,6 @@ def send_notification(msg, notify_conf):
         post_to_telegram(msg, nc['telegram_chat_ids'], nc['telegram_bot_id'])
     if nc['pushbullet']:
         post_to_pushbullet(msg, nc['pushbullet_token'], nc['pushbullet_deviceid'])
+    if nc['irc']:
+        post_to_irc(msg, nc['irc_host'], nc['irc_port'], nc['irc_nick'], nc['irc_ident'], nc['irc_realname'],
+                    nc['irc_target'])
