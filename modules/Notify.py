@@ -3,7 +3,11 @@ import urllib
 import urllib2
 import json
 import smtplib
-from irc import client
+try:
+    from irc import client
+    IRC_LOADED = True
+except ImportError:
+    IRC_LOADED = False
 
 IRC_CLIENT = None
 IRC_SERVER = None
@@ -121,5 +125,8 @@ def send_notification(msg, notify_conf):
     if nc['pushbullet']:
         post_to_pushbullet(msg, nc['pushbullet_token'], nc['pushbullet_deviceid'])
     if nc['irc']:
-        post_to_irc(msg, nc['irc_host'], nc['irc_port'], nc['irc_nick'], nc['irc_ident'], nc['irc_realname'],
-                    nc['irc_target'])
+        if IRC_LOADED:
+            post_to_irc(msg, nc['irc_host'], nc['irc_port'], nc['irc_nick'], nc['irc_ident'], nc['irc_realname'],
+                        nc['irc_target'])
+        else:
+            print("IRC module not available, please run 'pip install irc'")
